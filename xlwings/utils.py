@@ -618,11 +618,17 @@ def fullname_url_to_local_path(
         # Windows registry
         url_to_mount = get_url_to_mount()
         mount_point = None
-        for remote_path, mount_point in url_to_mount.items():
-            if url.startswith(remote_path):
-                local_path = Path(mount_point) / url[len(remote_path) :].removeprefix("/")
-                if local_path.is_file():
-                    return str(local_path)
+        for url_namespace, mount_point in url_to_mount.items():
+            if url.startswith(url_namespace):
+                relative_url = url[len(url_namespace) :]
+
+                while True:
+                    local_path = Path(mount_point) / relative_url
+                    if local_path.is_file():
+                        return str(local_path)
+                    if "/" not in relative_url:
+                        break
+                    _, relative_url = relative_url.split("/", 1)
         # Horrible fallback
         return search_local_sharepoint_path(
             url,
@@ -749,9 +755,8 @@ def get_url_to_mount():
                     ) as key:
                         try:
                             mount_point, _ = winreg.QueryValueEx(key, "MountPoint")
-                            remote_path, _ =  winreg.QueryValueEx(key, "FullRemotePath")
-                            remote_path = re.sub(r"^https:/(?!/)", "https://", remote_path)
-                            url_to_mount[remote_path] = mount_point
+                            url_namespace, _ = winreg.QueryValueEx(key, "URLNamespace")
+                            url_to_mount[url_namespace] = mount_point
                         except FileNotFoundError:
                             pass
         except FileNotFoundError:
